@@ -287,8 +287,7 @@ tbody tr:last-child td{border-bottom:none}
 
 footer{border-top:1px solid var(--line); padding:26px 0 40px; text-align:center; color:var(--muted); font-size:13px}
 footer .lock{display:flex; align-items:center; justify-content:center; gap:9px; margin-bottom:8px}
-footer .lock img{height:20px; opacity:.85}
-footer .lock i{font-style:normal; font-size:12px; letter-spacing:.04em; border-left:1px solid var(--line); padding-left:9px}
+footer .lock img{height:24px; opacity:.9}
 .hidden{display:none !important}
 .toast{
   position:fixed; left:50%; bottom:26px; transform:translateX(-50%);
@@ -416,7 +415,7 @@ const ASSETS = {"hero": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOIAAAEsC
    ▼▼▼ 여기 한 줄만 바꾸면 됩니다 ▼▼▼
    Apps Script 배포 후 받은 웹 앱 URL을 따옴표 안에 붙여넣으세요.
    =================================================================== */
-const API = "https://script.google.com/macros/s/AKfycbwQ6HrNa1SsH41wZ0AhDK8A-y03jsFRZ3wmxDsCJlRANAkvJMsMycIaqNtqvrozzqK-/exec";
+const API = "https://script.google.com/macros/library/d/1v66bnjaLp8U6SQRNaPae7rxcr0ElstrOBkFCIF_Lb8GLToLdnkz7-2OQ/1";
 /* =================================================================== */
 
 const DAYS = ["일","월","화","수","목","금","토"];
@@ -467,15 +466,19 @@ async function apiPost(body){
   });
   return await r.json();
 }
+function absorb(d){
+  if(!d || !d.ok || !d.batches) return false;
+  batches = d.batches.map(b=>({...b, sessions: Array.isArray(b.sessions)?b.sessions:[]}));
+  apps = d.apps || [];
+  return true;
+}
 async function reload(){
   if(loading) return;
   loading = true;
   try{
     const d = await apiGet();
-    if(d && d.ok){
-      batches = (d.batches||[]).map(b=>({...b, sessions: Array.isArray(b.sessions)?b.sessions:[]}));
-      apps = d.apps || [];
-      if(adminKey && !d.admin){ adminKey = null; setAdmin(false); toast("관리자 세션이 풀렸어요"); }
+    if(absorb(d) && adminKey && !d.admin){
+      adminKey = null; setAdmin(false); toast("관리자 세션이 풀렸어요");
     }
   }catch(e){
     if(String(e.message)!=="no_api") toast("정보를 불러오지 못했어요");
@@ -592,7 +595,10 @@ function openGate(){
     err.textContent = "확인 중…";
     try{
       const r = await apiPost({action:"login", key});
-      if(r && r.ok){ adminKey = key; close(); setAdmin(true); await reload(); toast("관리자 모드로 들어왔어요"); }
+      if(r && r.ok){
+        adminKey = key; absorb(r); close(); setAdmin(true); afterData();
+        toast("관리자 모드로 들어왔어요");
+      }
       else { err.textContent = ERRS.auth; pw.select(); }
     }catch(e){ err.textContent = "서버에 연결하지 못했어요"; }
   };
@@ -715,7 +721,7 @@ async function saveBatch(){
     const r = await apiPost({action:"saveBatch", key:adminKey, oldId: editId==="new"?null:editId,
       batch:{no:d.no, applyStart:d.applyStart, applyEnd:d.applyEnd,
         onlineStart:d.onlineStart, onlineEnd:d.onlineEnd, sessions:sess}});
-    if(r && r.ok){ editId=null; editData=null; await reload(); toast(`${d.no}기를 저장했어요`); renderSetup(); }
+    if(r && r.ok){ editId=null; editData=null; absorb(r); afterData(); toast(`${d.no}기를 저장했어요`); renderSetup(); }
     else { $("#saveNote").textContent = ERRS[r&&r.error] || "저장하지 못했어요"; }
   }catch(e){ $("#saveNote").textContent = "서버에 연결하지 못했어요"; }
   const btn = $("#saveCfg"); if(btn) btn.disabled = false;
@@ -726,7 +732,7 @@ async function delBatch(id){
   if(!confirm(msg)) return;
   try{
     const r = await apiPost({action:"deleteBatch", key:adminKey, id});
-    if(r && r.ok){ if(viewId===id) viewId=null; await reload(); toast("지웠어요"); renderSetup(); }
+    if(r && r.ok){ if(viewId===id) viewId=null; absorb(r); afterData(); toast("지웠어요"); renderSetup(); }
     else toast("지우지 못했어요");
   }catch(e){ toast("서버에 연결하지 못했어요"); }
 }
@@ -837,7 +843,7 @@ $("#submitBtn").addEventListener("click", async ()=>{
     const r = await apiPost({action:"apply", rec});
     if(r && r.ok){
       localSet("ep_mine_"+b.id, {name:rec.name, date:sess.date});
-      await reload();
+      absorb(r); afterData();
       showDone(rec, b);
     } else {
       $("#submitNote").textContent = ERRS[r&&r.error] || "신청을 보내지 못했어요";
@@ -953,7 +959,7 @@ function renderList(){
     if(!confirm("이 신청을 지울까요? 구글 시트에서도 사라져요.")) return;
     try{
       const r = await apiPost({action:"deleteApplicant", key:adminKey, id:el.dataset.drop});
-      if(r && r.ok){ await reload(); toast("지웠어요"); } else toast("지우지 못했어요");
+      if(r && r.ok){ absorb(r); afterData(); toast("지웠어요"); } else toast("지우지 못했어요");
     }catch(e){ toast("서버에 연결하지 못했어요"); }
   }));
   const dl = $("#dlBtn");
