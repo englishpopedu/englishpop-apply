@@ -289,6 +289,11 @@ footer{border-top:1px solid var(--line); padding:26px 0 40px; text-align:center;
 footer .lock{display:flex; align-items:center; justify-content:center; gap:9px; margin-bottom:8px}
 footer .lock img{height:24px; opacity:.9}
 .hidden{display:none !important}
+.dots::after{content:"…"; display:inline-block; width:1em; text-align:left; animation:dots 1.2s steps(4,end) infinite}
+@keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+.sync{display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted); font-weight:700; margin-left:8px}
+.sync i{width:6px; height:6px; border-radius:50%; background:var(--orange); animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.25}50%{opacity:1}}
 .toast{
   position:fixed; left:50%; bottom:26px; transform:translateX(-50%);
   background:var(--navy); color:#fff; padding:12px 22px; border-radius:14px;
@@ -427,7 +432,7 @@ const FIELDS = [
 
 let batches = [], apps = [], isAdmin = false, picked = null, tab = "apply";
 let applyId = null, viewId = null, editId = null, editData = null;
-let adminKey = null, loading = false;
+let adminKey = null, loading = false, booted = false;
 const chipState = {role:"계약당사자", gender:"", size:"", room:"", career:"", fc:""};
 
 const $ = s => document.querySelector(s);
@@ -444,6 +449,29 @@ function toast(msg){
 }
 function localGet(k,d){ try{ const v=localStorage.getItem(k); return v==null?d:JSON.parse(v); }catch(e){ return d; } }
 function localSet(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+
+/* ---------- 직전 정보 기억 (첫 화면을 바로 띄우기 위함) ----------
+   연락처·주소 같은 개인정보는 담지 않는다. 관리자 상태에서도 저장하지 않는다. */
+const CACHE_KEY = "ep_cache_v1";
+function saveCache(){
+  if(adminKey) return;
+  try{
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      at: Date.now(), batches,
+      apps: apps.map(a=>({id:a.id, batchId:a.batchId, sessionId:a.sessionId,
+        sessionDate:a.sessionDate, name:a.name, hq:a.hq, branch:a.branch, createdAt:a.createdAt}))
+    }));
+  }catch(e){}
+}
+function loadCache(){
+  try{
+    const c = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+    if(!c || !Array.isArray(c.batches) || !c.batches.length) return false;
+    batches = c.batches.map(b=>({...b, sessions: Array.isArray(b.sessions)?b.sessions:[]}));
+    apps = c.apps || [];
+    return true;
+  }catch(e){ return false; }
+}
 
 /* ---------- 서버 통신 ---------- */
 const ERRS = {
@@ -484,6 +512,8 @@ async function reload(){
     if(String(e.message)!=="no_api") toast("정보를 불러오지 못했어요");
   }
   loading = false;
+  booted = true;
+  saveCache();
   afterData();
 }
 
@@ -522,6 +552,13 @@ function renderHero(){
   const b = curBatch();
   const badge = $("#heroBadge"), t = $("#heroTitle"), s = $("#heroSub"), sp = $("#speech");
   badge.className = "badge";
+  if(API && !booted && !b){
+    badge.textContent = "불러오는 중";
+    t.textContent = "잉글리시팝 신규원장 입문교육";
+    s.textContent = "교육 정보를 확인하고 있어요.";
+    sp.textContent = "잠깐만요!";
+    return;
+  }
   if(!b){
     badge.textContent = "준비 중"; t.textContent = "잉글리시팝 신규원장 입문교육";
     s.textContent = API ? "기수가 아직 열리지 않았어요." : "서버 주소가 아직 연결되지 않았어요."; sp.textContent = "곧 만나요!";
@@ -618,6 +655,12 @@ function renderSetup(){
   if(!isAdmin) return;
   const box = $("#setupBody");
   if(editId) return drawEditor(box);
+  if(API && !booted && !batches.length){
+    box.innerHTML = `<div class="card"><div class="empty">
+      <img src="${ASSETS.peek}" alt=""><div class="big">불러오는 중이에요</div>
+      <p class="dots">잠시만 기다려 주세요</p></div></div>`;
+    return;
+  }
   const list = sorted();
   let html = `<div class="card">
     <img class="card-mascot" src="${ASSETS.setup}" alt="">
@@ -742,6 +785,13 @@ function renderGate(){
   const gate = $("#applyGate"), body = $("#applyBody");
   const b = curBatch();
   let html = "", block = false;
+  if(API && !booted && !b){
+    gate.innerHTML = `<div class="card"><div class="empty">
+      <img src="${ASSETS.peek}" alt=""><div class="big">기수 정보를 불러오는 중이에요</div>
+      <p class="dots">잠시만 기다려 주세요</p></div></div>`;
+    body.classList.add("hidden");
+    return;
+  }
   if(!API){
     html = `<div class="card"><div class="empty"><img src="${ASSETS.empty}" alt="">
       <div class="big">서버 주소가 비어 있어요</div>
@@ -881,6 +931,12 @@ function showDone(rec, b){
 /* ---------- 현황 ---------- */
 function renderList(){
   const box = $("#listBody");
+  if(API && !booted && !batches.length){
+    box.innerHTML = `<div class="card"><div class="empty">
+      <img src="${ASSETS.peek}" alt=""><div class="big">불러오는 중이에요</div>
+      <p class="dots">잠시만 기다려 주세요</p></div></div>`;
+    return;
+  }
   if(!batches.length){
     box.innerHTML = `<div class="card"><div class="empty"><img src="${ASSETS.empty}" alt="">
       <div class="big">보여드릴 신청 내역이 없어요</div><p>기수를 먼저 등록해 주세요.</p></div></div>`;
@@ -1005,8 +1061,10 @@ function afterData(){
 (async function init(){
   try{ adminKey = sessionStorage.getItem("ep_key") || null; }catch(e){}
   setAdmin(!!adminKey);
+  if(!adminKey && loadCache()) booted = true;   // 저장해둔 내용을 즉시 표시
+  if(!API) booted = true;
   afterData();
-  if(API) await reload();
+  if(API) reload();                             // 최신 정보는 뒤에서 조용히 갱신
 })();
 </script>
 </body>
