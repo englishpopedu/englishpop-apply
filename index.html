@@ -847,8 +847,7 @@ function renderGate(){
     block = true;
   } else if(allFull(b)){
     html = `<div class="card"><div class="empty"><img src="${ASSETS.full}" alt="">
-      <div class="big">모든 일자가 찼어요</div>
-      <p>자리가 나는지 본부 교육팀에 문의해 주세요.</p></div></div>`;
+      <div class="big">모든 일자가 찼어요</div></div></div>`;
     block = true;
   } else {
     const open = openBatches();
@@ -873,6 +872,15 @@ function renderGate(){
 function renderSessPick(){
   const b = curBatch(); if(!b) return;
   const box = $("#sessPick");
+  if(API && !booted){   // 서버 응답 전에는 숫자를 보여주지 않는다 (0명으로 보이는 것 방지)
+    box.innerHTML = b.sessions.map(s=>`<button class="sess" disabled style="opacity:.6">
+      <div class="d">${fmt(s.date)}</div>
+      <div class="w">오프라인 교육</div>
+      <div class="bar"><i style="width:0"></i></div>
+      <div class="n dots">남은 자리 확인 중</div>
+    </button>`).join("");
+    return;
+  }
   box.innerHTML = b.sessions.map(s=>{
     const n = countFor(b,s.id), left = Math.max(0, s.capacity-n), pct = Math.min(100, Math.round(n/s.capacity*100));
     const cls = left===0 ? "fullb" : (left<=3 ? "warn" : "");
