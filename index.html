@@ -958,8 +958,29 @@ function showDone(rec, b){
       <dt>오프라인 교육일</dt><dd>${fmt(rec.sessionDate)}</dd>
       <dt>온라인 교육 기간</dt><dd>${fmt(b.onlineStart)} ~ ${fmt(b.onlineEnd)}</dd>
     </dl></div>
-    ${statGrid(b)}
+    <div style="margin-top:26px">${statGrid(b)}</div>
+    <div class="actions" style="justify-content:center; margin-top:4px">
+      <button class="btn btn-ghost" id="backToApply">신청 화면으로 돌아가기</button>
+    </div>
   </div></div>`;
+  $("#backToApply").addEventListener("click", resetApply);
+}
+
+/* 접수 완료 → 새 신청서로 돌아가기 (같은 본부에서 여러 명 신청하는 경우) */
+function resetApply(){
+  $("#doneBody").classList.add("hidden"); $("#doneBody").innerHTML = "";
+  ["f-hq","f-branch","f-name","f-eng","f-phone","f-addr","f-note"].forEach(id=> $("#"+id).value = "");
+  $("#f-size").value = ""; $("#f-agree").checked = false;
+  Object.assign(chipState, {role:"계약당사자", gender:"", size:"", room:"", career:"", fc:""});
+  $$("[data-chip]").forEach(g=>{
+    g.querySelectorAll(".chip").forEach(c=> c.setAttribute("aria-pressed", String(g.dataset.chip==="role" && c.textContent==="계약당사자")));
+  });
+  picked = null;
+  const btn = $("#submitBtn"); btn.dataset.busy = "0";
+  $("#applyBody").classList.remove("hidden");
+  renderHero(); renderGate(); renderSessPick(); checkReady();
+  window.scrollTo({top:0, behavior:"smooth"});
+  reload();
 }
 
 /* ---------- 현황 ---------- */
